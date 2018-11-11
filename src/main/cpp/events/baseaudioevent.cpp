@@ -60,7 +60,7 @@ void BaseAudioEvent::setInstrument( BaseInstrument* aInstrument )
     // additionally, if event was added to the sequencer, add it to the new
     // instruments sequenced events list
 
-    if ( aInstrument != 0 &&
+    if ( aInstrument != nullptr &&
         _instrument  != aInstrument )
     {
         bool wasAddedToSequencer = _addedToSequencer;
@@ -77,7 +77,7 @@ void BaseAudioEvent::setInstrument( BaseInstrument* aInstrument )
 
 void BaseAudioEvent::play()
 {
-    if ( _livePlayback || _instrument == 0 )
+    if ( _livePlayback || _instrument == nullptr )
         return;
 
     setDeletable( false );
@@ -118,7 +118,7 @@ void BaseAudioEvent::addToSequencer()
 
 void BaseAudioEvent::removeFromSequencer()
 {
-    if ( !_addedToSequencer || _instrument == 0 )
+    if ( !_addedToSequencer || _instrument == nullptr )
         return;
 
     if ( !isSequenced )
@@ -129,7 +129,7 @@ void BaseAudioEvent::removeFromSequencer()
     {
         std::vector<BaseAudioEvent*>* events = _instrument->getEvents();
 
-        if ( events != 0 ) {
+        if ( events != nullptr ) {
             std::vector<BaseAudioEvent*>::iterator position = std::find( events->begin(),
                                                                          events->end(), this );
             if ( position != events->end() )
@@ -290,7 +290,7 @@ void BaseAudioEvent::setLoopeable( bool value )
 {
     _loopeable = value;
 
-    if ( _buffer != 0 )
+    if ( _buffer != nullptr )
         _buffer->loopeable = _loopeable;
 }
 
@@ -361,11 +361,15 @@ void BaseAudioEvent::mixBuffer( AudioBuffer* outputBuffer, int bufferPosition,
 
     int bufferSize = outputBuffer->bufferSize;
 
-    // if the output channel amount differs from this events channel amount, we might
+    // if the buffer channel amount differs from the output channel amount, we might
     // potentially have a bad time (e.g. engine has mono output while this event is stereo)
     // ideally events should never hold more channels than AudioEngineProps::OUTPUT_CHANNELS
 
-    int outputChannels = std::min( _buffer->amountOfChannels, outputBuffer->amountOfChannels );
+    int outputChannels = outputBuffer->amountOfChannels;
+
+    // but mixing mono events into multichannel output is OK
+    bool mixMono = _buffer->amountOfChannels < outputChannels;
+
     int bufferPointer, readPointer, i, c, ca;
     SAMPLE_TYPE* srcBuffer;
     SAMPLE_TYPE* tgtBuffer;
@@ -402,7 +406,7 @@ void BaseAudioEvent::mixBuffer( AudioBuffer* outputBuffer, int bufferPosition,
 
                 for ( c = 0; c < outputChannels; ++c )
                 {
-                    srcBuffer = _buffer->getBufferForChannel( c );
+                    srcBuffer = _buffer->getBufferForChannel( mixMono ? 0 : c );
                     tgtBuffer = outputBuffer->getBufferForChannel( c );
 
                     if ( readPointer < maxReadPos )
@@ -419,7 +423,7 @@ void BaseAudioEvent::mixBuffer( AudioBuffer* outputBuffer, int bufferPosition,
 
                     for ( c = 0; c < outputChannels; ++c )
                     {
-                        srcBuffer = _buffer->getBufferForChannel( c );
+                        srcBuffer = _buffer->getBufferForChannel( mixMono ? 0 : c );
                         tgtBuffer = outputBuffer->getBufferForChannel( c );
 
                         tgtBuffer[ i ] += ( srcBuffer[ readPointer ] * _volume );
@@ -432,7 +436,6 @@ void BaseAudioEvent::mixBuffer( AudioBuffer* outputBuffer, int bufferPosition,
     {
         // loopeable events mix their buffer contents using an internal read pointer
 
-        bool monoCopy = _buffer->amountOfChannels < outputBuffer->amountOfChannels;
         int maxBufPos = _buffer->bufferSize - 1;
 
         for ( i = 0; i < bufferSize; ++i )
@@ -445,11 +448,7 @@ void BaseAudioEvent::mixBuffer( AudioBuffer* outputBuffer, int bufferPosition,
                 // use range pointers to read within the specific buffer ranges
                 for ( c = 0, ca = _buffer->amountOfChannels; c < ca; ++c )
                 {
-                    // this sample might have less channels than the output buffer
-                    if ( !monoCopy )
-                        srcBuffer = _buffer->getBufferForChannel( c );
-                    else
-                        srcBuffer = _buffer->getBufferForChannel( 0 );
+                    srcBuffer = _buffer->getBufferForChannel( mixMono ? 0 : c );
 
                     tgtBuffer       = outputBuffer->getBufferForChannel( c );
                     tgtBuffer[ i ] += ( srcBuffer[ _readPointer ] * _volume );
@@ -489,7 +488,7 @@ void BaseAudioEvent::setBuffer( AudioBuffer* buffer, bool destroyable )
 
 bool BaseAudioEvent::hasBuffer()
 {
-    return _buffer != 0;
+    return _buffer != nullptr;
 }
 
 AudioBuffer* BaseAudioEvent::synthesize( int aBufferLength )
@@ -504,7 +503,7 @@ AudioBuffer* BaseAudioEvent::synthesize( int aBufferLength )
 
 void BaseAudioEvent::construct()
 {
-    _buffer            = 0;
+    _buffer            = nullptr;
     _enabled           = true;
     _destroyableBuffer = true;
     _loopeable         = false;
@@ -517,7 +516,7 @@ void BaseAudioEvent::construct()
     _readPointer       = 0;
     _startPosition     = 0.f;
     _endPosition       = 0.f;
-    _instrument        = 0;
+    _instrument        = nullptr;
     _deleteMe          = false;
     _livePlayback      = false;
     isSequenced        = true;
@@ -525,10 +524,10 @@ void BaseAudioEvent::construct()
 
 void BaseAudioEvent::destroyBuffer()
 {
-    if ( _destroyableBuffer && _buffer != 0 )
+    if ( _destroyableBuffer && _buffer != nullptr )
     {
         delete _buffer;
-        _buffer = 0;
+        _buffer = nullptr;
     }
 }
 
